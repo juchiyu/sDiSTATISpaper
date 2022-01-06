@@ -1,0 +1,80 @@
+---
+title: "0.2_sparseDiSTATIS"
+author: "Ju-Chi.Yu"
+date: "12/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars, echo = FALSE, include = FALSE}
+suppressMessages(library(psych))
+suppressMessages(library(DistatisR)) # 
+suppressMessages(library(tidyr))
+suppressMessages(library(magrittr))
+suppressMessages(library(data4PCCAR))
+suppressMessages(library(PTCA4CATA))
+suppressMessages(library(ggplot2))
+suppressMessages(library(ExPosition))
+suppressMessages(library(InPosition))
+suppressMessages(library(superheat))
+suppressMessages(library(gridExtra))
+suppressMessages(library(ggplotify))
+suppressMessages(library(grid))
+suppressMessages(library(viridis))
+suppressMessages(library(pals))
+library(sGSVD)
+library(SPAFAC)
+# Read functions
+tool.path <- "functions/"
+# source(paste0(tool.path, "PlotFactor.R"))
+# source(paste0(tool.path, "createLabel.gen.digit.R"))
+# source(paste0(tool.path, "createxyLabels.gen.digit.R"))
+
+## load data
+# load("../01_data/sub-MSCall9_zcube_rcube_DC.Rdata")
+# load("../01_data/sub-MSCall9_zcube_rcube.Rdata")
+# load("../01_data/indiv_parcel_info.rds")
+
+data("sortingWines")
+```
+
+```{r}
+
+wine.dx <- sortingWines$winesDescription
+
+free.exp <- sortingWines$freeSortExperts
+colnames(free.exp) <- paste0(colnames(sortingWines$freeSortExperts), ".freEx")
+tern.exp <- sortingWines$ternarySortExperts
+colnames(tern.exp) <- paste0(colnames(sortingWines$ternarySortExperts), ".terEx")
+tern.nov <- sortingWines$ternarySortNovices
+colnames(tern.nov) <- paste0(colnames(sortingWines$ternarySortNovices), ".terNv")
+
+gtab <- cbind(free.exp, tern.exp, tern.nov)
+exp.dx <- sub('.*\\.', "", colnames(gtab))
+
+exp.col <- createColorVectorsByDesign(makeNominalData(as.matrix(exp.dx)))
+rownames(exp.col$gc) <- sub('.*\\.', "", rownames(exp.col$gc))
+
+DisCube <- DistanceFromSort(gtab)
+```
+
+## DiSTATIS
+
+```{r}
+distatis.res <- distatis(DisCube)
+
+BootF <- BootFactorScores(distatis.res$res4Splus$PartialF)
+F_fullBoot <- BootFromCompromise(DisCube,niter=1000)
+
+
+rv.graph.out <- GraphDistatisRv(distatis.res$res4Cmat$G, participant.colors = exp.col$oc)
+compromise.graph.out <- GraphDistatisCompromise(distatis.res$res4Splus$F, item.colors = wine.dx$ColorCode)
+partial.scores.graph.out <- GraphDistatisPartial(distatis.res$res4Splus$F,distatis.res$res4Splus$PartialF)
+boot.graph.out.ell <- GraphDistatisBoot(distatis.res$res4Splus$F,BootF)
+boot.graph.out.hull <- GraphDistatisBoot(distatis.res$res4Splus$F,BootF,ellipses=FALSE)
+
+```
+
