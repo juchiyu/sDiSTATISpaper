@@ -7,7 +7,7 @@ PlotMyScree <- function(eigres, color.sig =  "#42376B", color.ns = "grey60",
     scale_y_continuous(name = bquote(atop(bold(.(title)),paste('\n\n    Percentage of \nvariance explained (%)'))),
                        sec.axis = sec_axis(~.*(eigres$eig[1]/eigres$tau[1]), name = "Pseudo-eigenvalues")) +
     xlab("Components") +
-    scale_x_continuous(breaks=c(1:9)) +
+    scale_x_continuous(breaks=c(1:nrow(eigres))) +
     theme(text = element_text(size = text.cex),
           legend.position = "none",
           axis.text.y.left = element_text(angle = 90),
