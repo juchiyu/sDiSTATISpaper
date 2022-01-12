@@ -1,7 +1,7 @@
 ---
-title: "0.2_sparseDiSTATIS"
-author: "Ju-Chi.Yu"
-date: "12/22/2021"
+title: "Sparse DiSTATIS with more than two dimensions"
+author: "Ju-Chi.Yu & Vincent Guillemot"
+date: "12/01/2022"
 output: html_document
 ---
 
@@ -25,7 +25,7 @@ suppressMessages(library(ggplotify))
 suppressMessages(library(grid))
 suppressMessages(library(viridis))
 suppressMessages(library(pals))
-library(sGSVD)
+devtools::load_all("~/git/sGSVD")
 library(SPAFAC)
 # Read functions
 tool.path <- "functions/"
@@ -70,18 +70,26 @@ colnames(tern.nov) <- paste0(colnames(sortingWines$ternarySortNovices), ".terNv"
 gtab <- cbind(free.exp, tern.exp, tern.nov)
 exp.dx <- sub('.*\\.', "", colnames(gtab))
 
+
+
 exp.col <- createColorVectorsByDesign(makeNominalData(as.matrix(exp.dx)))
 rownames(exp.col$gc) <- sub('.*\\.', "", rownames(exp.col$gc))
 
 DisCube <- DistanceFromSort(gtab)
+
+
+nbcomp <- factor(ifelse(unname(apply(gtab, 2, max) <= 3), "LessThan3", "MoreThan3"))
+nbcomp.col <- c("darkorchid4", "darkolivegreen")[nbcomp]
+
+
 ```
 
 ## DiSTATIS
 
 ### Analysis
-```{r}
-distatis.res <- distatis(DisCube)
 
+```{r distatis}
+# distatis.res <- distatis(DisCube)
 # BootF <- BootFactorScores(distatis.res$res4Splus$PartialF)
 # F_fullBoot <- BootFromCompromise(DisCube,niter=1000)
 ```
@@ -101,6 +109,16 @@ Cmap <- createFactorMap(distatis.res$res4Cmat$G,
                         col.labels = exp.col$oc)
 
 Cmap$zeMap
+
+
+Cmap2 <- createFactorMap(distatis.res$res4Cmat$G, 
+                        col.background = NULL,
+                        col.axes = "#42376B",
+                        alpha.axes = 0.5,
+                        col.points = nbcomp.col,
+                        col.labels = nbcomp.col)
+
+Cmap2$zeMap
 ```
 
 #### Compromise
@@ -132,8 +150,36 @@ DisCube.proc <- apply(DisCube, 3, DiStatis.preproc, simplify = FALSE)
 ```{r}
 I.c <- nrow(distatis.res$res4Cmat$C)
 
-rv.speig <- sparseEIGEN(X = distatis.res$res4Cmat$C, k = 5L, init = "svd", rds = rep(0.35*sqrt(I.c), 5))
-rownames(rv.speig$vectors) <- rownames(distatis.res$res4Cmat$C)
+RVmat <- distatis.res$res4Cmat$C
+
+U0 <- abs(eigen(RVmat)$vectors[, 1:2])
+
+rv.speig1 <- sparseEIGEN(X = RVmat, k = 2L, init = U0, rds = rep(0.5*sqrt(I.c), 2))
+
+U1mirr <- rv.speig1$vectors == 0
+U1mirr <- apply(U1mirr, 2, function(x) projL2(x)$x)
+
+cbind(rv.speig1$vectors[, 1], U1mirr[, 1])
+
+rv.speig2 <- sparseEIGEN(X = RVmat, k = 2L, init = U1mirr, rds = rep(0.5*sqrt(I.c), 2))
+
+torem <- rv.speig1$vectors[, 1] == 0
+
+RVmat3 <- RVmat[torem, torem]
+I.c3 <- nrow(RVmat3)
+all(eigen(RVmat3)$values > 0)
+
+rv.speig3 <- sparseEIGEN(X = RVmat3, k = 2L, init = "svd", rds = rep(0.8*sqrt(I.c3), 2))
+
+U3 <- rep(0, I.c)
+U3[torem] <- rv.speig3$vectors[, 1] * 
+  sign(rv.speig3$vectors[rv.speig3$vectors[, 1] != 0, 1][1])
+
+Matrix::Matrix(as.matrix(round(data.frame(
+  U1 = rv.speig1$vectors[, 1],
+  U2 = rv.speig2$vectors[, 1],
+  U3 = U3), 3)))
+
 
 rv.spC <- list(pdq = list(eig = rv.speig$values,
                           U = rv.speig$vectors),
@@ -166,12 +212,12 @@ rv.S <- list(pdq = list(eig = rv.S.eig$values,
 rv.spC.eigres <- data.frame(eig = rv.spC$pdq$eig, tau = rv.spC$tau)
 PlotMyScree(rv.spC.eigres, cex = 2)
 
-rv.Cmap <- createFactorMap(rv.spC$G,
+rv.Cmap <- createFactorMap(rv.spC$G, 
                         col.background = NULL,
                         col.axes = "#42376B",
                         alpha.axes = 0.5,
-                        col.points = exp.col$oc,
-                        col.labels = exp.col$oc)
+                        col.points = nbcomp.col,
+                        col.labels = nbcomp.col)
 
 rv.Cmap$zeMap
 ```
@@ -224,15 +270,6 @@ cmp.Smap <- createFactorMap(cmp.Splus$f,
                         col.labels = wine.dx$ColorCode)
 
 cmp.Smap$zeMap
-
-cmp.Smap34 <- createFactorMap(cmp.Splus$f,axis1 = 3, axis = 4,
-                        col.background = NULL,
-                        col.axes = "#42376B",
-                        alpha.axes = 0.5,
-                        col.points = wine.dx$ColorCode,
-                        col.labels = wine.dx$ColorCode)
-
-cmp.Smap34$zeMap
 ```
 
 
@@ -241,14 +278,11 @@ cmp.Smap34$zeMap
 > I need to reconstruct the compromise (Splus) after sparsifying the RV space, because the Splus from the sparsified RV space gives negative eigenvalues (close to 0). I reconstruct the compromise by replacing these values with 0s.
 
 ```{r}
-## reconstruct rv.Splus
-# rv.Splus.cor <- rv.S.eig$vector %*% diag(rv.S.eig$values) %*% t(rv.S.eig$vectors)
-
 ## reuse the Splus from sparsified RV
 I.s <- nrow(rv.Splus)
 
 ## eigen decomposition of the compromise
-rvcmp.S.eig <- sparseEIGEN(X = rv.Splus, k = 2L, init = "svd", rds = rep(0.6*sqrt(I.s), 2))
+rvcmp.S.eig <- sparseEIGEN(X = rv.Splus, k = 5L, init = "svd", rds = rep(0.6*sqrt(I.s), 5))
 rvcmp.S <- list(pdq = list(eig = rvcmp.S.eig$values,
                             U = rvcmp.S.eig$vectors),
                  tau = rvcmp.S.eig$values/sum(rv.S.eig$values), # with respective to its own inertia when the compromise is not sparsified
@@ -275,3 +309,9 @@ rvcmp.Smap <- createFactorMap(rvcmp.S$f,
 
 rvcmp.Smap$zeMap
 ```
+
+## Subspace approach
+
+
+
+
