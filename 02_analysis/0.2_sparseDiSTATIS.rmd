@@ -248,7 +248,7 @@ cmp.Smap34$zeMap
 I.s <- nrow(rv.Splus)
 
 ## eigen decomposition of the compromise
-rvcmp.S.eig <- sparseEIGEN(X = rv.Splus, k = 2L, init = "svd", rds = rep(0.6*sqrt(I.s), 2))
+rvcmp.S.eig <- sparseEIGEN(X = rv.Splus, k = 3L, init = "svd", rds = rep(0.6*sqrt(I.s), 3))
 rvcmp.S <- list(pdq = list(eig = rvcmp.S.eig$values,
                             U = rvcmp.S.eig$vectors),
                  tau = rvcmp.S.eig$values/sum(rv.S.eig$values), # with respective to its own inertia when the compromise is not sparsified

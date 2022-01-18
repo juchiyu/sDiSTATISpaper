@@ -1,0 +1,156 @@
+---
+title: "0.3_partialFactorScores"
+author: "Ju-Chi.Yu"
+date: "1/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars, echo = FALSE, include = FALSE}
+suppressMessages(library(psych))
+suppressMessages(library(DistatisR)) # 
+suppressMessages(library(tidyr))
+suppressMessages(library(magrittr))
+suppressMessages(library(data4PCCAR))
+suppressMessages(library(PTCA4CATA))
+suppressMessages(library(ggplot2))
+suppressMessages(library(ExPosition))
+suppressMessages(library(InPosition))
+suppressMessages(library(superheat))
+suppressMessages(library(gridExtra))
+suppressMessages(library(ggplotify))
+suppressMessages(library(grid))
+suppressMessages(library(viridis))
+suppressMessages(library(pals))
+library(sGSVD)
+library(SPAFAC)
+# Read functions
+tool.path <- "02_analysis/functions/"
+
+source(paste0(tool.path, "PlotMyScree.R"))
+source(paste0(tool.path, "DiStatis.preproc.R"))
+
+### load Results
+load("../03_results/from02sDiSTATIS.rda")
+
+```
+
+## Projecting partial factor scores {.tabset}
+
+### DiSTATIS
+
+#### Partial factor scores map
+
+```{r}
+distatis.fi <- distatis.res$res4Splus$F
+distatis.fii <- distatis.res$res4Splus$PartialF
+
+Smap <- createFactorMap(distatis.res$res4Splus$F,
+                        col.background = NULL,
+                        col.axes = "#42376B",
+                        alpha.axes = 0.5,
+                        col.points = wine.dx$ColorCode,
+                        col.labels = wine.dx$ColorCode,
+                        constraints = minmaxHelper4Partial(distatis.fi, distatis.fii))
+
+Smap.wfii <- createPartialFactorScoresMap(distatis.fi,
+                             distatis.fii,
+                             colors4Blocks = exp.col$oc,
+                             colors4Items = wine.dx$ColorCode)
+
+Smap$zeMap + Smap.wfii$pointsColByItems + Smap.wfii$labelsColByItems + Smap.wfii$linesColByBlocks
+
+```
+
+#### Barycentric property
+
+```{r}
+equals(round(apply(distatis.fii, c(1,2), weighted.mean, distatis.res$res4Cmat$alpha), 6),
+       round(distatis.fi, 6))
+```
+
+#### Equations for factor and partial factor scores
+
+\[
+\mathbf{F} = \mathbf{S}_{+}\mathbf{P}\mathbf{\Lambda}^{-\frac{1}{2}} \\
+\mathbf{F}_{[k]} = \mathbf{S}_{[k]}\mathbf{P}\mathbf{\Lambda}^{-\frac{1}{2}}
+\]
+
+```{r}
+## Factor scores
+lamda.neghalf <- diag(1/sqrt(distatis.res$res4Splus$eigValues[1:3]))
+build.f <- distatis.res$res4Splus$Splus %*% distatis.res$res4Splus$eigVectors[,1:3] %*% lamda.neghalf
+equals(distatis.res$res4Splus$F %>% round(6),
+      build.f %>% round(6))
+
+## Partial factor scores
+build.fii <- DisCube.proc[[1]] %*% distatis.res$res4Splus$eigVectors[,1:3] %*% lamda.neghalf
+real.fii <- distatis.res$res4Splus$PartialF[,,1]
+equals(real.fii %>% round(6),
+      build.fii %>% round(6))
+
+```
+
+
+### RV only
+
+\[
+\mathbf{F} = \mathbf{S}_{+}\mathbf{P}\mathbf{\Lambda}^{-\frac{1}{2}} \\
+\mathbf{F}_{[k]} = \mathbf{S}_{[k]}\mathbf{P}\mathbf{\Lambda}^{-\frac{1}{2}}
+\]
+
+\textbf{S} is the preprocessed distance matrix.
+
+```{r}
+## factor scores
+rv.build.fi <- rv.Splus %*% rv.S$pdq$U %*% diag(1/sqrt(rv.S$pdq$eig))
+rv.real.fi <- rv.S$f
+equals(rv.build.fi[,1:15] %>% round(8),
+       rv.real.fi[,1:15] %>% round(8))
+
+## projection matrix
+rv.proj <- rv.S$pdq$U[,1:15] %*% diag(1/sqrt(rv.S$pdq$eig[1:15]))
+
+## partial factor scores
+DisCube.proc.array <- array(as.numeric(unlist(DisCube.proc)), dim = dim(DisCube.S.array))
+rv.S$fii <- apply(DisCube.proc.array, 3, '%*%', rv.proj) %>% array(dim = c(dim(DisCube.S.array)[1], 15, dim(DisCube.S.array)[3]))
+# DisCube.S.array[,,2] %*% rv.proj
+
+```
+
+#### Plot
+
+```{r}
+colnames(rv.S$f) <- paste0("Factor ", 1:ncol(rv.S$f))
+colnames(rv.S$fii) <- paste0("Factor ", 1:ncol(rv.S$fii))
+dimnames(rv.S$fii)[3] <- dimnames(DisCube)[3]
+
+rv.Smap <- createFactorMap(rv.S$f,
+                        col.background = NULL,
+                        col.axes = "#42376B",
+                        alpha.axes = 0.5,
+                        col.points = wine.dx$ColorCode,
+                        col.labels = wine.dx$ColorCode,
+                        constraints = minmaxHelper4Partial(rv.S$f, rv.S$fii))
+
+rv.Smap.wfii <- createPartialFactorScoresMap(rv.S$f,
+                             rv.S$fii,
+                             colors4Blocks = exp.col$oc,
+                             colors4Items = wine.dx$ColorCode)
+
+rv.Smap$zeMap + rv.Smap.wfii$pointsColByItems + rv.Smap.wfii$labelsColByItems + rv.Smap.wfii$linesColByBlocks
+```
+
+
+#### Barycentric property
+
+```{r}
+rv.weighted.fii <- apply(rv.S$fii, c(1,2), weighted.mean, rv.spC$alpha)
+
+equals(round(rv.weighted.fii[,1:15], 6),
+       round(rv.real.fi[,1:15], 6))
+```
+
