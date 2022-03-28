@@ -112,7 +112,7 @@ grand.tab.preproc <- res.sts.byraters$mexPosition.Data$Overview$preprocess.data
 ```{r}
 eigres.sts <- data.frame(eig = res.sts.byraters$mexPosition.Data$InnerProduct$eigs, tau = res.sts.byraters$mexPosition.Data$InnerProduct$t)
 
-#rv.sts.scree <- 
+rv.sts.scree <- 
   PlotMyScree(eigres.sts, lwd = 0.8, cex = 1.3, title = "Scree plot for non-sparsed RV matrix from STATIS") + ggtheme
 ```
 
@@ -153,7 +153,7 @@ Splus.pfi <- createPartialFactorScoresMap(sts.fi,
                                           colors4Items = "#42376B",
                                           alpha.lines = 0.7, alpha.points = 0.7, size.lines = 0.5)
 
-Splus.fi$zeMap_background + Splus.pfi$mapColByBlocks + Splus.fi$zeMap_dots + Splus.fi$zeMap_text + sts.labels + ggtheme
+sts.cmpfi.plot <- Splus.fi$zeMap_background + Splus.pfi$mapColByBlocks + Splus.fi$zeMap_dots + Splus.fi$zeMap_text + sts.labels + ggtheme
 
 ### Fj
 Splus.fj <- createFactorMap(res.sts.byraters$mexPosition.Data$Table$Q,
@@ -166,7 +166,7 @@ Splus.fj <- createFactorMap(res.sts.byraters$mexPosition.Data$Table$Q,
                             label.axisName = "Component ",
                             alpha.axes = 0.5,
                             title = "STATIS: column factor scores of \nraters and flavors (columns)")
-Splus.fj$zeMap + sts.labels + ggtheme
+sts.cmpfj.plot <- Splus.fj$zeMap + sts.labels + ggtheme
 ```
 
 
@@ -175,13 +175,55 @@ Splus.fj$zeMap + sts.labels + ggtheme
 ```{r}
 RVmat <- res.sts.byraters$mexPosition.Data$InnerProduct$RVMatrix
 rownames(RVmat) <- colnames(RVmat) <- unique(raters)
+
 # pheatmap(res.sts.byraters$mexPosition.Data$InnerProduct$RVMatrix, clustering_method = 'ward.D2')
 
 disRV2 <- dist(res.sts.byraters$mexPosition.Data$InnerProduct$fi[,c(1:2)])
-pheatmap(RVmat, clustering_distance_rows = disRV2, clustering_distance_cols = disRV2, clustering_method = 'ward.D2')
 hc <- hclust(disRV2, method = "ward.D2")
 hc.3 <- cutree(hc, k = 3)
+names(hc.3) <- sub(".", "", names(hc.3))
 
+## hc.3 colors
+hc.col <- list()
+hc.col.idx <- c("1" = "#6388b4",
+                "2" = "#ffae34",
+                "3" = "#ef6f6a")
+hc.col$oc <- recode(hc.3, !!!hc.col.idx) %>% as.matrix
+rownames(hc.col$oc) <- names(hc.3)
+hc.col$gc <- hc.col.idx %>% as.matrix
+
+## heatmap ??? NOT WORKING!!!
+rv.heat <- pheatmap(RVmat, clustering_distance_rows = disRV2, clustering_distance_cols = disRV2, clustering_method = 'ward.D2', 
+                    annotation_row = factor(hc.3),
+                    annotation_col = factor(hc.3),
+                    annotation_colors = hc.col$gc)
+
+## plot RV factor scores
+rv.fimat <- res.sts.byraters$mexPosition.Data$InnerProduct$fi
+# rownames(rv.fimat) <- sub(".", "", rownames(rv.fimat))
+rv.fimat[,1] <- rv.fimat[,1]*-1
+
+rv.fi <- createFactorMap(rv.fimat,
+                         text.cex = 2,
+                         col.points = col.raters$gc[rownames(rv.fimat),],
+                         col.labels = col.raters$gc[rownames(rv.fimat),],
+                         # col.points = hc.col$oc,
+                         # col.labels = hc.col$oc,
+                         col.background = NULL,
+                         col.axes = "#42376B",
+                         width.axes = 0.5,
+                         label.axisName = "Component ",
+                         alpha.axes = 0.5,
+                         title = "STATIS: factor scores\nof the RV matrix")
+rv.label <- createxyLabels.gen(lambda = res.sts.byraters$mexPosition.Data$InnerProduct$eigs,
+                               tau = res.sts.byraters$mexPosition.Data$InnerProduct$t)
+
+rv.fi.plot <- rv.fi$zeMap + rv.label
+
+## plot barplot for alpha values
+alpha2plot <- res.sts.byraters$mexPosition.Data$InnerProduct$alphaWeights
+names(alpha2plot) <- sub(".", "", names(alpha2plot))
+rv.alpha <- PrettyBarPlot2(alpha2plot, threshold = 0, color4bar = col.raters$gc[order(alpha2plot)], sortValues = TRUE)
 ```
 
 # sparse RV
@@ -219,6 +261,9 @@ si.dat <- data.frame(
   t(si.mat.tmp)
 )
 
+si.dat$max <- "FALSE"
+si.dat$max[which.max(si.dat$SI)] <- "MAX"
+
 theta <- seq(pi, 3/2*pi, length.out = 150)
 siplot1 <- ggplot(si.dat, aes(zeroRatio, fitRatio)) + 
   geom_hline(yintercept = 1, color = "darkorchid4", alpha = 0.6, linetype = 3) + 
@@ -233,12 +278,27 @@ siplot1 <- ggplot(si.dat, aes(zeroRatio, fitRatio)) +
                                                           color = "darkorchid4", size = 0.2))  +
   geom_abline(intercept = 0, slope = 1, color = "darkorchid4", alpha = 0.6, linetype = 3) +
   geom_point(aes(size = SI)) + geom_line() +
-  theme_bw() + scale_size_continuous(limits = 0:1) + 
+  guides(color = guide_legend(override.aes = list(shape = 19, color = dimcol), nrow = 1, byrow = TRUE), shape = 19) +
+  theme_bw() + 
+  scale_size_continuous(limits = 0:1) + 
   coord_equal(xlim=0:1, ylim = 0:1) + 
-  labs(x = "Zero ratio", y = "Fit ratio", size = "Sparsity\nIndex") + 
+  labs(x = "Zero ratio", y = "Fit", size = "Sparsity\nIndex") + 
+  ggtitle("Subspace 1") +
   theme(
+    axis.title = element_text(size = 8, color = "#42376B"), 
+    axis.text = element_text(size = 8, color = "#42376B"), 
+    title = element_text(size = 8, color = c("#7F6CC7", "#FFFFFF", "#FFFFFF")),
+    legend.key.size = unit(0.1, "cm"), legend.text = element_text(size = 6), legend.position = "",
+    # legend.spacing.x = unit(0.05, "cm"),
+    # legend.margin = margin(0,0,0,0), legend.box.margin = margin(-5,0,0,0),
+    # legend.title.align = 0, legend.title = element_text(size = 6),
     panel.border = element_rect(size = 1.5, color = "#42376B", fill = NA),
-    panel.grid = element_blank()) 
+    plot.margin = unit(c(0.1,0,0,0), unit = "cm"),
+    panel.grid = element_blank()) + 
+  with(si.dat[si.dat$max == "MAX",], annotate(geom = "point", x = zeroRatio, y = fitRatio, color = "#7F6CC7", size = 3)) +
+  with(si.dat[si.dat$max == "MAX",], annotate(geom = "segment", x = zeroRatio + 0.25, y = fitRatio + 0.2, xend = zeroRatio+ 0.02, yend = fitRatio + 0.02, arrow = arrow(length = unit(0.05, "inches"), type = "closed"), color = "darkorchid4", size = 0.6)) + #0.05, 0.5
+  with(si.dat[si.dat$max == "MAX",], annotate(geom = "segment", x = zeroRatio + 0.025, y = fitRatio + 0.022, xend = zeroRatio+ 0.02, yend = fitRatio + 0.02, arrow = arrow(length = unit(0.04, "inches"), type = "closed"), color = "#7F6CC7", size = 0.01)) + #0.04, 0.01
+  with(si.dat[si.dat$max == "MAX",], annotate(geom = "label", x = zeroRatio + 0.26, y = fitRatio + 0.18, color = "darkorchid4", label = substring(sprintf("%.3f", SI), 2), fill = "#FAFAFA", size = 2.5))
 
 siplot1
 
@@ -282,6 +342,9 @@ si.dat2 <- data.frame(
   t(si.mat.tmp2)
 )
 
+si.dat2$max <- "FALSE"
+si.dat2$max[which.max(si.dat$SI)] <- "MAX"
+
 siplot2 <- ggplot(si.dat2, aes(zeroRatio, fitRatio)) + 
   geom_hline(yintercept = 1, color = "darkorchid4", alpha = 0.6, linetype = 3) + 
   geom_vline(xintercept = 1, color = "darkorchid4", alpha = 0.6, linetype = 3) + 
@@ -295,12 +358,27 @@ siplot2 <- ggplot(si.dat2, aes(zeroRatio, fitRatio)) +
                                                           color = "darkorchid4", size = 0.2))  +
   geom_abline(intercept = 0, slope = 1, color = "darkorchid4", alpha = 0.6, linetype = 3) +
   geom_point(aes(size = SI)) + geom_line() +
-  theme_bw() + scale_size_continuous(limits = 0:1) + 
+  guides(color = guide_legend(override.aes = list(shape = 19, color = dimcol), nrow = 1, byrow = TRUE), shape = 19) +
+  theme_bw() + 
+  scale_size_continuous(limits = 0:1) + 
   coord_equal(xlim=0:1, ylim = 0:1) + 
-  labs(x = "Zero ratio", y = "Fit ratio", size = "Sparsity\nIndex") + 
+  labs(x = "Zero ratio", y = "Fit", size = "Sparsity\nIndex") + 
+  ggtitle("Subspace 2") +
   theme(
+    axis.title = element_text(size = 8, color = "#42376B"), 
+    axis.text = element_text(size = 8, color = "#42376B"), 
+    title = element_text(size = 8, color = c("#7F6CC7", "#FFFFFF", "#FFFFFF")),
+    legend.key.size = unit(0.1, "cm"), legend.text = element_text(size = 6), legend.position = "",
+    # legend.spacing.x = unit(0.05, "cm"),
+    # legend.margin = margin(0,0,0,0), legend.box.margin = margin(-5,0,0,0),
+    # legend.title.align = 0, legend.title = element_text(size = 6),
     panel.border = element_rect(size = 1.5, color = "#42376B", fill = NA),
-    panel.grid = element_blank()) 
+    plot.margin = unit(c(0.1,0,0,0), unit = "cm"),
+    panel.grid = element_blank()) + 
+  with(si.dat2[si.dat2$max == "MAX",], annotate(geom = "point", x = zeroRatio, y = fitRatio, color = "#7F6CC7", size = 3)) +
+  with(si.dat2[si.dat2$max == "MAX",], annotate(geom = "segment", x = zeroRatio + 0.25, y = fitRatio + 0.2, xend = zeroRatio+ 0.02, yend = fitRatio + 0.02, arrow = arrow(length = unit(0.05, "inches"), type = "closed"), color = "darkorchid4", size = 0.6)) + #0.05, 0.5
+  with(si.dat2[si.dat2$max == "MAX",], annotate(geom = "segment", x = zeroRatio + 0.025, y = fitRatio + 0.022, xend = zeroRatio+ 0.02, yend = fitRatio + 0.02, arrow = arrow(length = unit(0.04, "inches"), type = "closed"), color = "#7F6CC7", size = 0.01)) + #0.04, 0.01
+  with(si.dat2[si.dat2$max == "MAX",], annotate(geom = "label", x = zeroRatio + 0.26, y = fitRatio + 0.18, color = "darkorchid4", label = substring(sprintf("%.3f", SI), 2), fill = "#FAFAFA", size = 2.5))
 
 siplot2
 
@@ -323,6 +401,11 @@ U3[-torem][-torem2] <- abs(rv.eig3$vectors[, 1])
 Usp <- data.frame(U1 = U1, U2 = U2, U3 = U3)
 rownames(Usp) <- unique(raters)
 
+## Scree plot
+eig.srv <- c(sum(rv.eig$values), sum(rv.eig2$values), sum(rv.eig3$values))
+eigres.srv <- data.frame(eig = eig.srv, tau = eig.srv/sum(eig.srv))
+rv.ssts.scree <- PlotMyScree(eigres.srv, lwd = 0.8, cex = 1.3, title = "Scree plot for the sparsified\nRV space from sSTATIS") + ggtheme
+
 ## check
 class <- Usp %>% transmute(class = ifelse(U1 > 0, "U1", ifelse(U2 > 0, "U2", "U3")))
 table(class$class, hc.3)
@@ -341,19 +424,22 @@ dat.U4lol$IDnum <- c(1:nrow(dat.U4lol))
 lol1 <- ggplot(dat.U4lol, aes(IDnum, U1, color = cluster)) + 
   geom_point() + 
   geom_segment(aes(xend = IDnum, y = 0, yend = U1)) + 
+  color_palette(palette = hc.col$gc) +
   theme_minimal() + labs(x = "") + theme(axis.text.x = element_blank())
 
 lol2 <- ggplot(dat.U4lol, aes(IDnum, U2, color = cluster)) + 
   geom_point() + 
   geom_segment(aes(xend = IDnum, y = 0, yend = U2)) + 
+  color_palette(palette = hc.col$gc) +
   theme_minimal()  + labs(x = "")+ theme(axis.text.x = element_blank())
 
 lol3 <- ggplot(dat.U4lol, aes(IDnum, U3, color = cluster)) + 
   geom_point() + 
   geom_segment(aes(xend = IDnum, y = 0, yend = U3)) + 
+  color_palette(palette = hc.col$gc) +
   theme_minimal()  + labs(x = "")+ theme(axis.text.x = element_blank())
 
-ggpubr::ggarrange(lol1, lol2, lol3, nrow = 3, common.legend = TRUE)
+sprv.loli <- ggpubr::ggarrange(lol1, lol2, lol3, nrow = 3, common.legend = TRUE)
 
 ```
 
@@ -416,6 +502,24 @@ Splus3.res <- STATIS.Sout(grand.tab.preproc[,which3], Splus3.svd, rep(1/nrow(gra
 ##*Splus1.res$fi
 ```
 
+### Scree plots
+```{r}
+eigres.srv.cmp <- list()
+eigres.srv.cmp$subsp1 <- data.frame(eig = Splus1.res$eig,
+                          tau = Splus1.res$tau)
+eigres.srv.cmp$subsp2 <- data.frame(eig = Splus2.res$eig,
+                          tau = Splus2.res$tau)
+eigres.srv.cmp$subsp3 <- data.frame(eig = Splus3.res$eig,
+                          tau = Splus3.res$tau)
+
+srv.cmp.scree1 <- PlotMyScree(eigres.srv.cmp$subsp1, lwd = 0.8, cex = 1.3) + ggtheme
+srv.cmp.scree2 <- PlotMyScree(eigres.srv.cmp$subsp2, lwd = 0.8, cex = 1.3) + ggtheme
+srv.cmp.scree3 <- PlotMyScree(eigres.srv.cmp$subsp3, lwd = 0.8, cex = 1.3) + ggtheme
+
+sprv.cmp.scree <- ggpubr::ggarrange(srv.cmp.scree1, srv.cmp.scree2, srv.cmp.scree3, nrow = 3, common.legend = TRUE)
+```
+
+
 ### Figures - Splus from U1
 ```{r}
 ## Labels
@@ -458,7 +562,7 @@ Splus1.pfi <- createPartialFactorScoresMap(Splus1.res$fi,
                                            colors4Items = "#42376B",
                                            alpha.lines = 0.7, alpha.points = 0.7, size.lines = 0.5)
 
-Splus1.fi$zeMap_background + Splus1.pfi$mapColByBlocks + Splus1.fi$zeMap_dots + Splus1.fi$zeMap_text + stsU1.labels + ggtheme
+srv.cmpfi1.plot <- Splus1.fi$zeMap_background + Splus1.pfi$mapColByBlocks + Splus1.fi$zeMap_dots + Splus1.fi$zeMap_text + stsU1.labels + ggtheme
 
 ### Fj
 Splus1.fj <- createFactorMap(Splus1.res$fj,
@@ -471,7 +575,7 @@ Splus1.fj <- createFactorMap(Splus1.res$fj,
                              label.axisName = "Component ",
                              alpha.axes = 0.5,
                              title = "STATIS: column factor scores of \nraters and flavors (columns)")
-Splus1.fj$zeMap + stsU1.labels + ggtheme
+srv.cmpfj1.plot <- Splus1.fj$zeMap + stsU1.labels + ggtheme
 
 ## Splus.U2 !!! WEIRD !!!
 ### Fi
@@ -492,7 +596,7 @@ Splus2.pfi <- createPartialFactorScoresMap(Splus2.res$fi,
                                            colors4Items = "#42376B",
                                            alpha.lines = 0.7, alpha.points = 0.7, size.lines = 0.5)
 
-Splus2.fi$zeMap_background + Splus2.pfi$mapColByBlocks + Splus2.fi$zeMap_dots + Splus2.fi$zeMap_text + stsU2.labels + ggtheme
+srv.cmpfi2.plot <- Splus2.fi$zeMap_background + Splus2.pfi$mapColByBlocks + Splus2.fi$zeMap_dots + Splus2.fi$zeMap_text + stsU2.labels + ggtheme
 
 ### Fj
 Splus2.fj <- createFactorMap(Splus2.res$fj,
@@ -505,7 +609,7 @@ Splus2.fj <- createFactorMap(Splus2.res$fj,
                              label.axisName = "Component ",
                              alpha.axes = 0.5,
                              title = "STATIS: column factor scores of \nraters and flavors (columns)")
-Splus2.fj$zeMap + stsU2.labels + ggtheme
+srv.cmpfj2.plot <- Splus2.fj$zeMap + stsU2.labels + ggtheme
 
 ## Splus.U3
 ### Fi
@@ -526,7 +630,7 @@ Splus3.pfi <- createPartialFactorScoresMap(Splus3.res$fi,
                                            colors4Items = "#42376B",
                                            alpha.lines = 0.7, alpha.points = 0.7, size.lines = 0.5)
 
-Splus3.fi$zeMap_background + Splus3.pfi$mapColByBlocks + Splus3.fi$zeMap_dots + Splus3.fi$zeMap_text + stsU3.labels + ggtheme
+srv.cmpfi3.plot <- Splus3.fi$zeMap_background + Splus3.pfi$mapColByBlocks + Splus3.fi$zeMap_dots + Splus3.fi$zeMap_text + stsU3.labels + ggtheme
 
 ### Fj
 Splus3.fj <- createFactorMap(Splus3.res$fj,
@@ -539,7 +643,7 @@ Splus3.fj <- createFactorMap(Splus3.res$fj,
                              label.axisName = "Component ",
                              alpha.axes = 0.5,
                              title = "STATIS: column factor scores of \nraters and flavors (columns)")
-Splus3.fj$zeMap + stsU3.labels + ggtheme
+srv.cmpfj3.plot <- Splus3.fj$zeMap + stsU3.labels + ggtheme
 ```
 
 ## Sparse compromise
@@ -677,6 +781,16 @@ colnames(ssts.svd$u) <- colnames(ssts.svd$v) <- colnames(ssts.svd$p) <- colnames
 ssts.res <- STATIS.Sout(grand.tab.preproc, ssts.svd, rep(1/nrow(grand.tab), nrow(grand.tab)), alpha.mat.cp, raters.fac)
 ```
 
+### Scree plot
+
+```{r}
+eigres.scmp <- data.frame(eig = ssts.res$eig,
+                          tau = ssts.res$tau)
+
+scmp.scree <- PlotMyScree(eigres.scmp, lwd = 0.8, cex = 1.3, title = "Scree plot for the sparsified compromise\n from sSTATIS") + ggtheme
+```
+
+
 ### Factor scores
 ```{r}
 ssts.labels <- createxyLabels.gen(1,2,
@@ -705,7 +819,7 @@ ssts.pfi <- createPartialFactorScoresMap(ssts.res$fi,
                                          colors4Items = "#42376B",
                                          alpha.lines = 0.7, alpha.points = 0.7, size.lines = 0.5)
 
-ssts.fi$zeMap_background + ssts.pfi$mapColByBlocks + ssts.fi$zeMap_dots + ssts.fi$zeMap_text + ssts.labels + ggtheme
+ssts.cmpfi.plot <- ssts.fi$zeMap_background + ssts.pfi$mapColByBlocks + ssts.fi$zeMap_dots + ssts.fi$zeMap_text + ssts.labels + ggtheme
 
 ### Fj
 ssts.fj <- createFactorMap(ssts.res$fj,
@@ -718,6 +832,7 @@ ssts.fj <- createFactorMap(ssts.res$fj,
                            label.axisName = "Component ",
                            alpha.axes = 0.5,
                            title = "sSTATIS: column factor scores of \nraters and flavors (columns)")
-ssts.fj$zeMap + ssts.labels + ggtheme
+ssts.cmpfj.plot <- ssts.fj$zeMap + ssts.labels + ggtheme
 ```
 
+## Assemble the figures
