@@ -156,12 +156,14 @@ statis <- function(LaGrandeTable,
         diff.row <- lapply(LaGrandeTable.preproc, nrow) %>% unique %>% length()
         diff.col <- lapply(LaGrandeTable.preproc, ncol) %>% unique %>% length()
         
-        if (diff.row == 1 & diff.col > 1 | diff.row == 1 & diff.col == 1 & diff.row < diff.col){
+        if (((diff.row == 1 & diff.col > 1) |
+             (diff.row == 1 & diff.col == 1))){
             ## create crossproduct with rows
-            data.list <- lapply(LaGrandeTable.preproc, function(x) crossprod(t(x)))
-        }else if (diff.row > 1 & diff.col == 1 | diff.row == 1 & diff.col == 1 & diff.row > diff.col){
+            data.list <- lapply(LaGrandeTable.preproc, tcrossprod)
+        } else if (diff.col == 1) {
+            ## create crossproduct with rows
             data.list <- lapply(LaGrandeTable.preproc, crossprod)
-        }else{
+        } else {
             stop("Either the rows or the columns of the data tables have to match.")
         }
         leCube <- array(as.numeric(unlist(data.list)), 
