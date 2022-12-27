@@ -23,6 +23,8 @@ source("../functions/plot.smca.results.R")
 source("../functions/PlotMyScree.R")
 source("../functions/PrettyBarPlot.MuSu.R")
 source("../functions/sparsity_helpers.R")
+source("../functions/sparsity_helpers.R")
+source("../functions/statis.R")
 
 ## Load the data
 load("../01_data/MFA_turkeysensory.rda")
@@ -68,6 +70,9 @@ ggtheme.noborder <- theme(axis.title = element_text(size = 6, color = "#42376B")
 ##### STUCK HERE: MEXPOSITION id DEPRECATED
 ## -------------------------------------------------------------------
 res.sts.byraters <- mpSTATIS(grand.tab, column.design = raters.coldx, statis.prepro.option = 'Plain_STATIS', DESIGN = raters, graph = FALSE)
+
+# USE STATIS WITH SUMPCA NORMALZATION AND KEEP SS1
+
 
 # res.sts.byflavor <- mpSTATIS(grand.tab, column.design = flavors.coldx, statis.prepro.option = 'Plain_STATIS', DESIGN = flavors, graph = FALSE)
 
